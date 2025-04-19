@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <h2>Welcome to POS System</h2>
+        <p>Select an option from the navigation menu to get started.</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4 mb-4">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-cash-register fa-3x mb-3"></i>
+                <h5 class="card-title">Point of Sale</h5>
+                <p class="card-text">Process new sales and manage transactions</p>
+                <a href="{{ url_for('pos') }}" class="btn btn-primary">Go to POS</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-box fa-3x mb-3"></i>
+                <h5 class="card-title">Products</h5>
+                <p class="card-text">View and manage product inventory</p>
+                <a href="{{ url_for('products') }}" class="btn btn-primary">Manage Products</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-chart-line fa-3x mb-3"></i>
+                <h5 class="card-title">Sales History</h5>
+                <p class="card-text">View past sales and transactions</p>
+                <a href="{{ url_for('sales') }}" class="btn btn-primary">View Sales</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

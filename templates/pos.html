@@ -1,0 +1,725 @@
+{% extends "base.html" %}
+
+{% block title %}POS{% endblock %}
+
+{% block extra_css %}
+<style>
+    .product-card {
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    .product-card:hover {
+        transform: scale(1.02);
+        background-color: #ff7124;
+    }
+    .product-card:hover .card-body {
+        background-color: #ff7124;
+        color: white;
+    }
+    .product-card:hover .card-text {
+        color: rgba(255, 255, 255, 0.9);
+    }
+    .product-card:active {
+        background-color: #ff7124;
+        transform: scale(0.98);
+    }
+    .product-card:active .card-body {
+        background-color: #ff7124;
+        color: white;
+    }
+    .product-card:active .card-text {
+        color: rgba(255, 255, 255, 0.9);
+    }
+    @keyframes fadeUpOut {
+        0% {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        50% {
+            opacity: 0.5;
+            transform: translateY(-20px);
+        }
+        100% {
+            opacity: 0;
+            transform: translateY(-40px);
+        }
+    }
+    .fade-up-out {
+        animation: fadeUpOut 0.5s ease-out forwards;
+    }
+    .product-card.clicked::after {
+        content: '✓';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 2em;
+        color: white;
+        opacity: 0;
+        animation: checkmark 0.5s ease-out forwards;
+    }
+    @keyframes checkmark {
+        0% {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.5);
+        }
+        50% {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1.2);
+        }
+        100% {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(1);
+        }
+    }
+    #cart {
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+    .category-filter-container {
+        position: relative;
+        margin-bottom: 1rem;
+        padding: 0 40px;
+        background-color: #f8f9fa;
+        border-radius: 15px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .category-filter-scroll {
+        overflow-x: hidden;
+        white-space: nowrap;
+        position: relative;
+        scroll-behavior: smooth;
+    }
+    .category-filter {
+        display: inline-flex;
+        padding: 10px 0;
+        align-items: center;
+    }
+    .category-filter .btn {
+        margin-right: 0.5rem;
+        flex-shrink: 0;
+        border-radius: 20px;
+        padding: 8px 16px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    .category-filter .btn.active {
+        background-color: #00639f;
+        color: white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .category-filter .btn:not(.active):hover {
+        background-color: #e9ecef;
+        transform: translateY(-1px);
+    }
+    .scroll-btn {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 1;
+        background: #00639f;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        transition: all 0.3s ease;
+    }
+    .scroll-btn:hover:not(:disabled) {
+        background: #004d7c;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    .scroll-btn:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+        background: #6c757d;
+    }
+    .scroll-btn-left {
+        left: 4px;
+    }
+    .scroll-btn-right {
+        right: 4px;
+    }
+    .payment-modal .modal-dialog {
+        max-width: 800px;
+    }
+    .payment-summary {
+        background-color: #f8f9fa;
+        padding: 20px;
+        border-radius: 5px;
+    }
+    .payment-method-btn {
+        width: 100%;
+        margin-bottom: 10px;
+        padding: 15px;
+        text-align: left;
+        border: 2px solid #00639f;
+        color: #00639f;
+        background-color: white;
+        transition: all 0.3s ease;
+    }
+    .payment-method-btn:hover {
+        border-color: #034a75;
+        color: #034a75;
+        background-color: rgba(3, 74, 117, 0.1);
+    }
+    .payment-method-btn.active {
+        background-color: #00639f;
+        border-color: #00639f;
+        color: white;
+        box-shadow: 0 2px 4px rgba(0, 99, 159, 0.2);
+    }
+    .payment-method-btn.active:hover {
+        background-color: #034a75;
+        border-color: #034a75;
+    }
+    .payment-info {
+        margin-top: 20px;
+    }
+    .modal-footer .btn {
+        padding: 8px 24px;
+        font-weight: 500;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+    }
+    .modal-footer .btn-secondary {
+        border: 2px solid #00639f;
+        color: #00639f;
+        background-color: white;
+    }
+    .modal-footer .btn-secondary:hover {
+        border-color: #034a75;
+        color: #034a75;
+        background-color: rgba(3, 74, 117, 0.1);
+    }
+    .modal-footer .btn-primary {
+        background-color: #00639f;
+        border: 2px solid #00639f;
+        color: white;
+    }
+    .modal-footer .btn-primary:hover {
+        background-color: #034a75;
+        border-color: #034a75;
+    }
+    .modal-footer .btn-primary:disabled {
+        background-color: #ccc;
+        border-color: #ccc;
+    }
+    .card-header .fa-cart-shopping {
+        font-size: 1.5rem;
+        color: #333;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Main POS Content -->
+<div class="row">
+    <!-- Products Section -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">Products</h4>
+            </div>
+            <div class="card-body">
+                <!-- Category Filter -->
+                <div class="category-filter-container">
+                    <button class="scroll-btn scroll-btn-left" onclick="scrollCategories('left')" id="scrollLeftBtn">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <div class="category-filter-scroll" id="categoryScroll">
+                        <div class="category-filter">
+                            <button class="btn btn-outline-primary active" onclick="filterProducts('all')">
+                                All Products
+                            </button>
+                            {% for category in categories %}
+                            <button class="btn btn-outline-primary" onclick="filterProducts('{{ category.id }}')">
+                                {{ category.name }}
+                            </button>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <button class="scroll-btn scroll-btn-right" onclick="scrollCategories('right')" id="scrollRightBtn">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+
+                <div class="row" id="products-grid">
+                    {% for product in products %}
+                    <div class="col-md-4 mb-3 product-item" data-category="{{ product.category_id or 'none' }}">
+                        <div class="card product-card" onclick="addToCart({{ product.id }}, '{{ product.name }}', {{ product.price }}, {{ product.stock }})">
+                            <div class="card-body">
+                                <h5 class="card-title">{{ product.name }}</h5>
+                                <p class="card-text">
+                                    Category: {{ product.category_name }}<br>
+                                    Price: ₱{{ "%.2f"|format(product.price) }}<br>
+                                    Stock: {{ product.stock }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cart Section -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <i class="fas fa-cart-shopping fa-lg"></i>
+            </div>
+            <div class="card-body">
+                <div id="cart" class="mb-3">
+                    <!-- Cart items will be dynamically added here -->
+                </div>
+                <hr>
+                <div class="d-flex justify-content-between mb-3">
+                    <h5>Total:</h5>
+                    <h5>₱<span id="total">0.00</span></h5>
+                </div>
+                <button class="btn btn-success w-100" onclick="showPaymentModal()">Complete Sale</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Modal -->
+<div class="modal fade payment-modal" id="paymentModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Order Confirmation</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <!-- Order Summary -->
+                    <div class="col-md-6">
+                        <h6 class="mb-3">Order Summary</h6>
+                        <div id="modalOrderSummary"></div>
+                        <hr>
+                        <div class="d-flex justify-content-between">
+                            <strong>Total:</strong>
+                            <strong>₱<span id="modalTotal">0.00</span></strong>
+                        </div>
+                    </div>
+
+                    <!-- Payment Section -->
+                    <div class="col-md-6">
+                        <h6 class="mb-3">Payment Method</h6>
+                        <div class="payment-methods">
+                            <button class="btn btn-outline-primary payment-method-btn" onclick="selectPaymentMethod('CASH')">
+                                <i class="fas fa-money-bill-wave"></i> Cash
+                            </button>
+                            <button class="btn btn-outline-primary payment-method-btn" onclick="selectPaymentMethod('E-WALLET')">
+                                <i class="fas fa-wallet"></i> E-Wallet
+                            </button>
+                            <button class="btn btn-outline-primary payment-method-btn" onclick="selectPaymentMethod('CREDIT_CARD')">
+                                <i class="fas fa-credit-card"></i> Credit Card
+                            </button>
+                        </div>
+
+                        <div id="cashPaymentInfo" class="payment-info" style="display: none;">
+                            <div class="mb-3">
+                                <label class="form-label">Cash Received</label>
+                                <input type="number" class="form-control" id="cashReceived" step="0.01" min="0" onchange="calculateChange()">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Change</label>
+                                <input type="text" class="form-control" id="changeAmount" readonly>
+                            </div>
+                        </div>
+
+                        <div id="digitalPaymentInfo" class="payment-info" style="display: none;">
+                            <div class="alert alert-info">
+                                Total amount of ₱<span class="modalTotal">0.00</span> will be charged.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmPaymentBtn" onclick="processSale()" disabled>
+                    Confirm Payment
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Shift Warning Modal -->
+<div class="modal fade" id="shiftWarningModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-warning">
+                    <i class="fas fa-exclamation-triangle"></i> Shift Not Open
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <p class="mb-4">You need to open shift first before making any transactions.</p>
+                <a href="/sales_report" class="btn btn-primary btn-lg">
+                    <i class="fas fa-cash-register"></i> Go to Sales Report
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let cart = [];
+let total = 0;
+let selectedPaymentMethod = null;
+let paymentModal = null;
+let isShiftOpen = false;
+const shiftWarningModal = new bootstrap.Modal(document.getElementById('shiftWarningModal'));
+
+document.addEventListener('DOMContentLoaded', function() {
+    paymentModal = new bootstrap.Modal(document.getElementById('paymentModal'));
+    updateScrollButtons();
+    document.getElementById('categoryScroll').addEventListener('scroll', updateScrollButtons);
+    checkShiftStatus();
+    
+    // Check shift status every 30 seconds
+    setInterval(checkShiftStatus, 30000);
+});
+
+function updateScrollButtons() {
+    const container = document.getElementById('categoryScroll');
+    const scrollLeft = container.scrollLeft;
+    const scrollWidth = container.scrollWidth;
+    const clientWidth = container.clientWidth;
+    
+    document.getElementById('scrollLeftBtn').disabled = scrollLeft <= 0;
+    document.getElementById('scrollRightBtn').disabled = scrollLeft + clientWidth >= scrollWidth;
+}
+
+function scrollCategories(direction) {
+    const container = document.getElementById('categoryScroll');
+    const scrollAmount = container.clientWidth * 0.8;
+    
+    if (direction === 'left') {
+        container.scrollLeft -= scrollAmount;
+    } else {
+        container.scrollLeft += scrollAmount;
+    }
+    
+    setTimeout(updateScrollButtons, 100);
+}
+
+function showPaymentModal() {
+    if (cart.length === 0) {
+        alert('Cart is empty!');
+        return;
+    }
+
+    // Update order summary
+    const summaryHtml = cart.map(item => `
+        <div class="d-flex justify-content-between mb-2">
+            <span>${item.name} x ${item.quantity}</span>
+            <span>₱${(item.price * item.quantity).toFixed(2)}</span>
+        </div>
+    `).join('');
+
+    document.getElementById('modalOrderSummary').innerHTML = summaryHtml;
+    document.getElementById('modalTotal').textContent = total.toFixed(2);
+    document.querySelectorAll('.modalTotal').forEach(el => el.textContent = total.toFixed(2));
+
+    // Reset payment method
+    selectedPaymentMethod = null;
+    document.querySelectorAll('.payment-method-btn').forEach(btn => btn.classList.remove('active'));
+    document.getElementById('cashPaymentInfo').style.display = 'none';
+    document.getElementById('digitalPaymentInfo').style.display = 'none';
+    document.getElementById('confirmPaymentBtn').disabled = true;
+    
+    if (document.getElementById('cashReceived')) {
+        document.getElementById('cashReceived').value = '';
+    }
+    if (document.getElementById('changeAmount')) {
+        document.getElementById('changeAmount').value = '';
+    }
+
+    paymentModal.show();
+}
+
+function selectPaymentMethod(method) {
+    selectedPaymentMethod = method;
+    
+    // Update button states
+    document.querySelectorAll('.payment-method-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.textContent.includes(method.replace('_', ' '))) {
+            btn.classList.add('active');
+        }
+    });
+
+    // Show/hide payment info sections
+    if (method === 'CASH') {
+        document.getElementById('cashPaymentInfo').style.display = 'block';
+        document.getElementById('digitalPaymentInfo').style.display = 'none';
+        document.getElementById('confirmPaymentBtn').disabled = true;
+    } else {
+        document.getElementById('cashPaymentInfo').style.display = 'none';
+        document.getElementById('digitalPaymentInfo').style.display = 'block';
+        document.getElementById('confirmPaymentBtn').disabled = false;
+    }
+}
+
+function calculateChange() {
+    const cashReceived = parseFloat(document.getElementById('cashReceived').value) || 0;
+    const change = cashReceived - total;
+    
+    if (change >= 0) {
+        document.getElementById('changeAmount').value = '₱' + change.toFixed(2);
+        document.getElementById('confirmPaymentBtn').disabled = false;
+    } else {
+        document.getElementById('changeAmount').value = 'Insufficient amount';
+        document.getElementById('confirmPaymentBtn').disabled = true;
+    }
+}
+
+function filterProducts(categoryId) {
+    document.querySelectorAll('.category-filter .btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
+
+    document.querySelectorAll('.product-item').forEach(item => {
+        if (categoryId === 'all' || item.dataset.category === categoryId) {
+            item.style.display = '';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+function addToCart(id, name, price, stock) {
+    if (!isShiftOpen) {
+        shiftWarningModal.show();
+        return;
+    }
+    
+    const card = event.currentTarget;
+    const existingItem = cart.find(item => item.product_id === id);
+    
+    if (existingItem) {
+        if (existingItem.quantity < stock) {
+            existingItem.quantity += 1;
+            animateCard(card);
+            updateCart();
+        } else {
+            alert('Not enough stock!');
+        }
+    } else {
+        if (stock > 0) {
+            cart.push({
+                product_id: id,
+                name: name,
+                price: price,
+                quantity: 1
+            });
+            animateCard(card);
+            updateCart();
+        } else {
+            alert('Not enough stock!');
+        }
+    }
+}
+
+function animateCard(card) {
+    // Add clicked class for checkmark animation
+    card.classList.add('clicked');
+    
+    // Create and animate clone
+    const clone = card.cloneNode(true);
+    clone.style.position = 'absolute';
+    clone.style.zIndex = '1000';
+    clone.style.width = card.offsetWidth + 'px';
+    clone.style.height = card.offsetHeight + 'px';
+    clone.style.left = card.offsetLeft + 'px';
+    clone.style.top = card.offsetTop + 'px';
+    
+    card.parentNode.appendChild(clone);
+    clone.classList.add('fade-up-out');
+    
+    // Remove clone and clicked class after animation
+    setTimeout(() => {
+        clone.remove();
+        card.classList.remove('clicked');
+    }, 500);
+}
+
+function removeFromCart(index) {
+    cart.splice(index, 1);
+    updateCart();
+}
+
+function updateQuantity(index, delta) {
+    const item = cart[index];
+    const product = {{ products|tojson|safe }}.find(p => p.id === item.product_id);
+    
+    if (delta > 0 && item.quantity >= product.stock) {
+        alert('Not enough stock!');
+        return;
+    }
+    
+    item.quantity += delta;
+    if (item.quantity <= 0) {
+        removeFromCart(index);
+    } else {
+        updateCart();
+    }
+}
+
+function updateCart() {
+    const cartDiv = document.getElementById('cart');
+    total = 0;
+    
+    cartDiv.innerHTML = cart.map((item, index) => {
+        const itemTotal = item.price * item.quantity;
+        total += itemTotal;
+        const product = {{ products|tojson|safe }}.find(p => p.id === item.product_id);
+        const remainingStock = product.stock - item.quantity;
+        
+        return `
+            <div class="card mb-2">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">${item.name}</h6>
+                        <button class="btn btn-sm btn-danger" onclick="removeFromCart(${index})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <div class="input-group" style="max-width: 150px;">
+                            <button class="btn btn-sm btn-secondary" onclick="updateQuantity(${index}, -1)">-</button>
+                            <input type="number" class="form-control form-control-sm text-center" 
+                                value="${item.quantity}" 
+                                min="1" 
+                                onchange="updateQuantityManual(${index}, this.value)"
+                                style="width: 60px;">
+                            <button class="btn btn-sm btn-secondary" onclick="updateQuantity(${index}, 1)">+</button>
+                        </div>
+                        <div>₱${(itemTotal).toFixed(2)}</div>
+                    </div>
+                    <div class="mt-2 text-muted small">
+                        <span class="me-3">Current Stock: ${product.stock}</span>
+                        <span class="text-${remainingStock < 10 ? 'warning' : 'success'}">
+                            After Sale: ${remainingStock}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    document.getElementById('total').textContent = total.toFixed(2);
+}
+
+function updateQuantityManual(index, newQuantity) {
+    const item = cart[index];
+    const product = {{ products|tojson|safe }}.find(p => p.id === item.product_id);
+    const quantity = parseInt(newQuantity);
+    
+    if (isNaN(quantity) || quantity < 1) {
+        updateCart(); // Reset to previous valid quantity
+        return;
+    }
+    
+    if (quantity > product.stock) {
+        alert('Not enough stock!');
+        updateCart(); // Reset to previous valid quantity
+        return;
+    }
+    
+    item.quantity = quantity;
+    updateCart();
+}
+
+function processSale() {
+    if (!selectedPaymentMethod) {
+        alert('Please select a payment method');
+        return;
+    }
+
+    let paymentInfo = {
+        method: selectedPaymentMethod
+    };
+
+    if (selectedPaymentMethod === 'CASH') {
+        const cashReceived = parseFloat(document.getElementById('cashReceived').value);
+        const change = cashReceived - total;
+        
+        if (isNaN(cashReceived) || change < 0) {
+            alert('Please enter a valid cash amount');
+            return;
+        }
+        
+        paymentInfo.cashReceived = cashReceived;
+        paymentInfo.changeAmount = change;
+    }
+
+    const saleData = {
+        total: total,
+        items: cart.map(item => ({
+            product_id: item.product_id,
+            quantity: item.quantity,
+            price: item.price
+        })),
+        payment: paymentInfo
+    };
+
+    fetch('/create_sale', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(saleData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            paymentModal.hide();
+            alert('Sale completed successfully!');
+            cart = [];
+            updateCart();
+            location.reload(); // Refresh to update stock
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error processing sale');
+    });
+}
+
+// Function to check shift status
+function checkShiftStatus() {
+    fetch('/api/shift_status/current')
+        .then(response => response.json())
+        .then(data => {
+            isShiftOpen = data.is_open;
+            if (isShiftOpen) {
+                console.log('Shift is open');
+            } else {
+                console.log('Shift is closed');
+            }
+        })
+        .catch(error => {
+            console.error('Error checking shift status:', error);
+        });
+}
+</script>
+{% endblock %} 

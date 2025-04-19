@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+
+{% block title %}Products{% endblock %}
+
+{% block extra_css %}
+<style>
+    .btn-custom-primary {
+        background-color: #00639f;
+        border-color: #00639f;
+        color: white;
+        transition: all 0.3s ease;
+    }
+    .btn-custom-primary:hover {
+        background-color: #034a75;
+        border-color: #034a75;
+        color: white;
+    }
+    .list-group-item {
+        transition: all 0.3s ease;
+        border-left: 3px solid transparent;
+    }
+    .list-group-item:hover {
+        background-color: #ff7124;
+        color: white;
+        border-left: 3px solid #d55b15;
+    }
+    .list-group-item:hover .badge {
+        background-color: white !important;
+        color: #ff7124;
+    }
+    .list-group-item.active {
+        background-color: #00639f;
+        border-color: #00639f;
+        border-left: 3px solid #034a75;
+    }
+    .action-buttons {
+        white-space: nowrap;
+    }
+    .action-buttons .btn {
+        margin-left: 5px;
+    }
+    .content-locked {
+        filter: blur(5px);
+        pointer-events: none;
+        position: relative;
+    }
+    .password-overlay {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 1050;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 0 20px rgba(0,0,0,0.2);
+        width: 90%;
+        max-width: 400px;
+    }
+    .password-overlay.hidden {
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Password Verification Overlay -->
+<div id="passwordVerification" class="password-overlay">
+    <h5 class="mb-3">Verify Password</h5>
+    <p>Please enter your password to access the products page.</p>
+    <div class="mb-3">
+        <input type="password" class="form-control" id="verifyPassword" placeholder="Enter your password">
+        <div class="invalid-feedback">
+            Incorrect password. Please try again.
+        </div>
+    </div>
+    <div class="d-flex justify-content-end gap-2">
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">Cancel</a>
+        <button type="button" class="btn btn-primary" onclick="verifyPassword()">Verify</button>
+    </div>
+</div>
+
+<div id="productsContent" class="content-locked">
+    <div class="row mb-4">
+        <!-- Categories Section -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Categories</h4>
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        <a href="{{ url_for('products') }}" class="list-group-item list-group-item-action {% if not selected_category %}active{% endif %}">
+                            All Products
+                        </a>
+                        {% for category in categories %}
+                        <a href="{{ url_for('products', category_id=category.id) }}" 
+                           class="list-group-item list-group-item-action {% if selected_category and selected_category.id == category.id %}active{% endif %}">
+                            {{ category.name }}
+                            <span class="badge bg-secondary float-end">{{ category.products|length }}</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Products Section -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">Products</h4>
+                    {% if session.get('user_id') %}
+                    <a href="{{ url_for('add_product') }}" class="btn btn-custom-primary">Add Product</a>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Category</th>
+                                    <th>Price</th>
+                                    <th>Stock</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for product in products %}
+                                <tr>
+                                    <td>{{ product.id }}</td>
+                                    <td>{{ product.name }}</td>
+                                    <td>{{ product.category.name if product.category else 'No Category' }}</td>
+                                    <td>₱{{ "%.2f"|format(product.price) }}</td>
+                                    <td>{{ product.stock }}</td>
+                                    <td class="action-buttons">
+                                        {% if product.user_id == session.get('user_id') %}
+                                        <a href="{{ url_for('edit_product', id=product.id) }}" class="btn btn-sm btn-custom-primary">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <button class="btn btn-sm btn-danger" onclick="confirmDelete({{ product.id }}, '{{ product.name }}')">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                Are you sure you want to delete the product "<span id="productName"></span>"?
+                This action cannot be undone.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="deleteProduct()">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let deleteModal;
+let productToDelete = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    deleteModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+    
+    // Check if password was already verified in this session
+    const isVerified = sessionStorage.getItem('productsPasswordVerified');
+    if (isVerified) {
+        // Already verified, show content
+        document.getElementById('passwordVerification').classList.add('hidden');
+        document.getElementById('productsContent').classList.remove('content-locked');
+    } else {
+        // Need verification, focus on password input
+        document.getElementById('verifyPassword').focus();
+    }
+    
+    // Handle Enter key in password input
+    document.getElementById('verifyPassword').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            verifyPassword();
+        }
+    });
+    
+    // Add click handlers to navigation links
+    document.querySelectorAll('a').forEach(link => {
+        link.addEventListener('click', function(e) {
+            const href = this.getAttribute('href');
+            // Don't clear verification for products or add_product pages
+            if (href && !href.includes('products') && !href.includes('add_product')) {
+                sessionStorage.removeItem('productsPasswordVerified');
+            }
+        });
+    });
+});
+
+function verifyPassword() {
+    const password = document.getElementById('verifyPassword').value;
+    
+    fetch('/verify_password', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ password: password })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Store verification in session storage
+            sessionStorage.setItem('productsPasswordVerified', 'true');
+            document.getElementById('passwordVerification').classList.add('hidden');
+            document.getElementById('productsContent').classList.remove('content-locked');
+        } else {
+            const passwordInput = document.getElementById('verifyPassword');
+            passwordInput.classList.add('is-invalid');
+            setTimeout(() => {
+                passwordInput.classList.remove('is-invalid');
+            }, 3000);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error verifying password');
+    });
+}
+
+function confirmDelete(productId, productName) {
+    productToDelete = productId;
+    document.getElementById('productName').textContent = productName;
+    deleteModal.show();
+}
+
+function deleteProduct() {
+    if (!productToDelete) return;
+    
+    fetch(`/delete_product/${productToDelete}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error deleting product: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error deleting product');
+    })
+    .finally(() => {
+        deleteModal.hide();
+        productToDelete = null;
+    });
+}
+</script>
+{% endblock %} 

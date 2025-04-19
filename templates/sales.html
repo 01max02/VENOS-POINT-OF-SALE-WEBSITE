@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block title %}Sales History{% endblock %}
+
+{% block extra_css %}
+<style>
+    .refunded {
+        background-color: #fff3cd;
+    }
+    .refund-badge {
+        font-size: 0.8em;
+        padding: 0.3em 0.6em;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h4 class="mb-0">Sales History</h4>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Sale ID</th>
+                        <th>Date</th>
+                        <th>Items</th>
+                        <th>Payment Method</th>
+                        <th>Total Amount</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sale_data in sales_data %}
+                    <tr {% if sale_data.sale.is_refunded %}class="refunded"{% endif %}>
+                        <td>{{ sale_data.sale.id }}</td>
+                        <td>{{ sale_data.sale.date.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        <td>
+                            <button class="btn btn-sm btn-info" type="button" 
+                                    data-bs-toggle="collapse" 
+                                    data-bs-target="#items{{ sale_data.sale.id }}" 
+                                    aria-expanded="false">
+                                View Items ({{ sale_data.sale_items|length }})
+                            </button>
+                        </td>
+                        <td>
+                            {{ sale_data.sale.payment_method }}
+                            {% if sale_data.sale.payment_method == 'CASH' %}
+                            <br>
+                            <small class="text-muted">
+                                Received: ₱{{ "%.2f"|format(sale_data.sale.cash_received) }}<br>
+                                Change: ₱{{ "%.2f"|format(sale_data.sale.change_amount) }}
+                            </small>
+                            {% endif %}
+                        </td>
+                        <td>₱{{ "%.2f"|format(sale_data.total) }}</td>
+                        <td>
+                            {% if sale_data.sale.is_refunded %}
+                            <span class="badge bg-warning refund-badge">
+                                Refunded<br>
+                                <small>{{ sale_data.sale.refund_date.strftime('%Y-%m-%d %H:%M:%S') }}</small>
+                            </span>
+                            {% else %}
+                            <span class="badge bg-success refund-badge">Completed</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex flex-column gap-2">
+                                <a href="{{ url_for('receipt', sale_id=sale_data.sale.id) }}" 
+                                   class="btn btn-sm btn-primary" target="_blank">
+                                    <i class="fas fa-receipt"></i> Receipt
+                                </a>
+                                {% if not sale_data.sale.is_refunded %}
+                                <button class="btn btn-warning btn-sm" onclick="showRefundModal({{ sale_data.sale.id }}, {{ sale_data.total }})">
+                                    <i class="fas fa-undo"></i> Refund
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="7" class="p-0">
+                            <div class="collapse" id="items{{ sale_data.sale.id }}">
+                                <div class="card card-body m-2">
+                                    <table class="table table-sm mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Product</th>
+                                                <th>Quantity</th>
+                                                <th>Price</th>
+                                                <th>Total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for item in sale_data.sale_items %}
+                                            <tr>
+                                                <td>{{ item.product_name }}</td>
+                                                <td>{{ item.quantity }}</td>
+                                                <td>₱{{ "%.2f"|format(item.price) }}</td>
+                                                <td>₱{{ "%.2f"|format(item.total) }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Refund Modal -->
+<div class="modal fade" id="refundModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Refund Sale</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <strong>Total Amount to Refund: ₱<span id="refundAmount"></span></strong>
+                </div>
+                <div class="mb-3">
+                    <label for="refundReason" class="form-label">Reason for Refund</label>
+                    <textarea class="form-control" id="refundReason" rows="3" required></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" onclick="processRefund()">
+                    Confirm Refund
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let refundModal;
+let currentSaleId;
+
+document.addEventListener('DOMContentLoaded', function() {
+    refundModal = new bootstrap.Modal(document.getElementById('refundModal'));
+});
+
+function showRefundModal(saleId, amount) {
+    currentSaleId = saleId;
+    document.getElementById('refundAmount').textContent = amount.toFixed(2);
+    document.getElementById('refundReason').value = '';
+    refundModal.show();
+}
+
+function processRefund() {
+    const reason = document.getElementById('refundReason').value.trim();
+    
+    if (!reason) {
+        alert('Please provide a reason for the refund');
+        return;
+    }
+    
+    fetch(`/refund_sale/${currentSaleId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ reason: reason })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            refundModal.hide();
+            alert('Refund processed successfully');
+            location.reload();
+        } else {
+            alert(data.message || 'Error processing refund');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error processing refund');
+    });
+}
+</script>
+{% endblock %} 

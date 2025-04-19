@@ -1,0 +1,944 @@
+{% extends "base.html" %}
+
+{% block title %}Sales Report{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<style>
+    .sales-report-container {
+        display: flex;
+        gap: 2rem;
+        min-height: 600px;
+    }
+    
+    .calendar-section {
+        flex: 0 0 300px;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .sales-data-section {
+        flex: 1;
+        padding: 1rem;
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .date-picker {
+        width: 100%;
+        padding: 0.5rem;
+        margin-bottom: 1rem;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+    }
+    
+    .sales-summary {
+        margin-bottom: 2rem;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 5px;
+    }
+    
+    .sales-table {
+        width: 100%;
+        margin-top: 1rem;
+    }
+    
+    .sales-table th {
+        background: #00639f;
+        color: white;
+    }
+    
+    .no-sales {
+        text-align: center;
+        padding: 2rem;
+        color: #6c757d;
+    }
+    
+    .receipt-style {
+        font-family: monospace;
+        background: white;
+        padding: 20px;
+        border-radius: 5px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        width: 100%;
+        max-width: 500px;
+        margin: 0 auto;
+    }
+
+    .receipt-header, .receipt-footer {
+        text-align: center;
+    }
+
+    .double-line {
+        white-space: pre;
+        color: #333;
+    }
+
+    .receipt-body {
+        margin: 15px 0;
+    }
+
+    .receipt-row {
+        display: flex;
+        justify-content: space-between;
+        margin: 8px 0;
+    }
+
+    .receipt-row.total {
+        font-weight: bold;
+    }
+
+    .deduction {
+        color: #dc3545;
+    }
+
+    .receipt-divider {
+        margin: 10px 0;
+        color: #666;
+    }
+
+    .action-buttons {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 2rem;
+        width: 100%;
+    }
+
+    .action-buttons .btn {
+        padding: 1rem 2rem;
+        font-weight: 500;
+        min-width: 200px;
+    }
+
+    .action-buttons .btn i {
+        margin-right: 0.5rem;
+    }
+
+    .addition {
+        color: #198754;  /* Bootstrap success color */
+    }
+    
+    .modal-body {
+        padding: 1.5rem;
+    }
+    
+    #cashManagementForm .btn {
+        padding: 0.5rem 1.5rem;
+    }
+    
+    .transaction-history {
+        max-height: 400px;
+        overflow-y: auto;
+        padding-right: 10px;
+    }
+    
+    .transaction-item {
+        padding: 10px;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        margin-bottom: 10px;
+        background-color: #f8f9fa;
+    }
+    
+    .transaction-item.pay-in {
+        border-left: 4px solid #198754;
+    }
+    
+    .transaction-item.pay-out {
+        border-left: 4px solid #dc3545;
+    }
+    
+    .transaction-amount {
+        font-weight: bold;
+    }
+    
+    .transaction-amount.pay-in {
+        color: #198754;
+    }
+    
+    .transaction-amount.pay-out {
+        color: #dc3545;
+    }
+    
+    .transaction-time {
+        font-size: 0.85em;
+        color: #6c757d;
+    }
+    
+    .transaction-comment {
+        margin-top: 5px;
+        font-size: 0.9em;
+    }
+    
+    .vr {
+        height: 100%;
+        border-left: 1px solid #dee2e6;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Sales Report</h2>
+
+<div class="sales-report-container">
+    <div class="calendar-section">
+        <h4>Select Date</h4>
+        <input type="text" id="datePicker" class="date-picker" placeholder="Select a date">
+    </div>
+    
+    <div class="sales-data-section">
+        <div class="action-buttons mb-4">
+            <button class="btn btn-primary btn-lg me-3" id="cashManagementBtn" data-bs-toggle="modal" data-bs-target="#cashManagementModal">
+                <i class="fas fa-money-bill-wave"></i> Cash Management
+            </button>
+            <button class="btn btn-danger btn-lg" id="closeShiftBtn">
+                <i class="fas fa-door-closed"></i> Close Shift
+            </button>
+        </div>
+
+        <div class="sales-summary">
+            <div class="receipt-style">
+                <div class="receipt-header">
+                    <div class="receipt-row">
+                        <span>Date:</span>
+                        <span id="selectedDate">today</span>
+                    </div>
+                </div>
+                
+                <div class="receipt-body">
+                    <div class="receipt-row">
+                        <span>Cash:</span>
+                        <span id="initialCash">₱0.00</span>
+                    </div>
+                    <div class="receipt-row">
+                        <span>E-Wallet:</span>
+                        <span id="gcashAmount" class="deduction">-₱0.00</span>
+                    </div>
+                    <div class="receipt-row">
+                        <span>Credit:</span>
+                        <span id="creditAmount" class="deduction">-₱0.00</span>
+                    </div>
+                    <div class="receipt-row">
+                        <span>Refund:</span>
+                        <span id="refundAmount" class="deduction">-₱0.00</span>
+                    </div>
+                    <div class="receipt-row">
+                        <span>Pay In:</span>
+                        <span id="payInAmount" class="addition">+₱0.00</span>
+                    </div>
+                    <div class="receipt-row">
+                        <span>Pay Out:</span>
+                        <span id="payOutAmount" class="deduction">-₱0.00</span>
+                    </div>
+                    
+                    <div class="receipt-divider">
+                        <span>____________________________________________</span>
+                    </div>
+                    
+                    <div class="receipt-row total">
+                        <span>Total Sales:</span>
+                        <span id="totalSales">₱0.00</span>
+                    </div>
+                    
+                    <div class="receipt-divider">
+                        <span>____________________________________________</span>
+                    </div>
+                    
+                    <div class="receipt-row total">
+                        <span>Total Cash to Collect:</span>
+                        <span id="finalCash">₱0.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="sales-details">
+            <h4>Transactions</h4>
+            <div class="table-responsive">
+                <table class="table table-hover sales-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Transaction ID</th>
+                            <th>Items</th>
+                            <th>Payment Method</th>
+                            <th>Total</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="salesTableBody">
+                        <tr>
+                            <td colspan="6" class="no-sales">Select a date to view sales data</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cash Management Modal -->
+<div class="modal fade" id="cashManagementModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Cash Management</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <!-- Transaction Form -->
+                    <div class="col-md-5">
+                        <form id="cashManagementForm">
+                            <div class="mb-3">
+                                <label for="amount" class="form-label">Amount</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">₱</span>
+                                    <input type="number" class="form-control" id="amount" required min="0" step="0.01">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="comment" class="form-label">Comment</label>
+                                <textarea class="form-control" id="comment" rows="3" required></textarea>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <button type="button" class="btn btn-danger" id="payOutBtn">
+                                    <i class="fas fa-minus-circle"></i> Pay Out
+                                </button>
+                                <button type="button" class="btn btn-success" id="payInBtn">
+                                    <i class="fas fa-plus-circle"></i> Pay In
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Vertical Divider -->
+                    <div class="col-md-1 d-flex justify-content-center">
+                        <div class="vr"></div>
+                    </div>
+
+                    <!-- Transaction History -->
+                    <div class="col-md-6">
+                        <h6 class="mb-3">Today's Transactions</h6>
+                        <div class="transaction-history" id="transactionHistory">
+                            <!-- Transactions will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Close Shift Modal -->
+<div class="modal fade" id="closeShiftModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Close Shift</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4">
+                    <h4>Total Cash to Collect</h4>
+                    <h2 class="text-primary" id="closeShiftAmount">₱0.00</h2>
+                </div>
+                <div class="d-grid">
+                    <button type="button" class="btn btn-primary btn-lg" id="collectCashBtn">
+                        <i class="fas fa-money-bill-wave"></i> Collect Cash
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Open Shift Modal -->
+<div class="modal fade" id="openShiftModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Open Shift</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4">
+                    <h4>Starting Cash</h4>
+                    <div class="input-group mb-3">
+                        <span class="input-group-text">₱</span>
+                        <input type="number" class="form-control form-control-lg text-center" id="startingCashInput" min="0" step="0.01">
+                    </div>
+                </div>
+                <div class="d-grid">
+                    <button type="button" class="btn btn-success btn-lg" id="startShiftBtn">
+                        <i class="fas fa-play-circle"></i> Start Shift
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Shift Close Confirmation Modal -->
+<div class="modal fade" id="shiftCloseConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Close Shift</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <p class="mb-4">Do you want to close the shift?</p>
+                <div class="d-flex justify-content-center gap-3">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> No
+                    </button>
+                    <button type="button" class="btn btn-danger" id="confirmCloseShiftBtn">
+                        <i class="fas fa-check"></i> Yes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const datePicker = flatpickr("#datePicker", {
+            dateFormat: "Y-m-d",
+            defaultDate: "today",
+            maxDate: "today",
+            onChange: function(selectedDates, dateStr) {
+                updateButtonsVisibility(dateStr);
+                loadSalesData(dateStr);
+            }
+        });
+        
+        // Load today's data by default
+        const today = new Date().toISOString().split('T')[0];
+        loadSalesData(today);
+        updateButtonsVisibility(today);
+        
+        function updateButtonsVisibility(selectedDate) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const selectedDateTime = new Date(selectedDate);
+            selectedDateTime.setHours(0, 0, 0, 0);
+            
+            const closeShiftBtn = document.getElementById('closeShiftBtn');
+            const cashManagementBtn = document.getElementById('cashManagementBtn');
+            
+            if (selectedDateTime.getTime() === today.getTime()) {
+                // Current date - show both buttons and check shift status
+                closeShiftBtn.style.display = 'block';
+                cashManagementBtn.style.display = 'block';
+                checkShiftStatus();
+            } else {
+                // Different date - hide only shift button, keep cash management visible
+                closeShiftBtn.style.display = 'none';
+                cashManagementBtn.style.display = 'block';
+                // Set cash management to view-only mode for past dates
+                cashManagementBtn.dataset.viewOnly = 'true';
+            }
+        }
+        
+        const modal = new bootstrap.Modal(document.getElementById('cashManagementModal'));
+        const payInBtn = document.getElementById('payInBtn');
+        const payOutBtn = document.getElementById('payOutBtn');
+        const amountInput = document.getElementById('amount');
+        const commentInput = document.getElementById('comment');
+        
+        payInBtn.addEventListener('click', function() {
+            handleCashManagement('PAY_IN');
+        });
+        
+        payOutBtn.addEventListener('click', function() {
+            handleCashManagement('PAY_OUT');
+        });
+        
+        function handleCashManagement(type) {
+            const amount = parseFloat(amountInput.value);
+            const comment = commentInput.value.trim();
+            const selectedDate = document.getElementById('datePicker').value;
+            
+            if (!amount || !comment) {
+                alert('Please fill in both amount and comment');
+                return;
+            }
+            
+            fetch('/api/cash_management', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    type: type,
+                    amount: amount,
+                    comment: comment,
+                    date: selectedDate
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Reset form
+                    amountInput.value = '';
+                    commentInput.value = '';
+                    
+                    // Reload both the sales data and transaction history
+                    loadSalesData(selectedDate);
+                    loadCashManagementHistory(selectedDate);
+                    
+                    // Update the UI to reflect changes
+                    const payInAmount = document.getElementById('payInAmount');
+                    const payOutAmount = document.getElementById('payOutAmount');
+                    const totalSales = document.getElementById('totalSales');
+                    const finalCash = document.getElementById('finalCash');
+                    
+                    if (type === 'PAY_IN') {
+                        const currentPayIn = parseFloat(payInAmount.textContent.replace(/[^0-9.-]+/g, ''));
+                        payInAmount.textContent = `+₱${formatCurrency(currentPayIn + amount)}`;
+                    } else {
+                        const currentPayOut = parseFloat(payOutAmount.textContent.replace(/[^0-9.-]+/g, ''));
+                        payOutAmount.textContent = `-₱${formatCurrency(currentPayOut + amount)}`;
+                    }
+                    
+                    // Update totals
+                    const currentTotal = parseFloat(totalSales.textContent.replace(/[^0-9.-]+/g, ''));
+                    const newTotal = type === 'PAY_IN' ? currentTotal + amount : currentTotal - amount;
+                    totalSales.textContent = formatCurrency(newTotal);
+                    
+                    const currentFinal = parseFloat(finalCash.textContent.replace(/[^0-9.-]+/g, ''));
+                    const newFinal = type === 'PAY_IN' ? currentFinal + amount : currentFinal - amount;
+                    finalCash.textContent = formatCurrency(newFinal);
+                } else {
+                    alert(data.message || 'Error processing transaction');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error processing transaction');
+            });
+        }
+        
+        // Load transaction history when modal is opened
+        document.getElementById('cashManagementBtn').addEventListener('click', function() {
+            loadCashManagementHistory(document.getElementById('datePicker').value);
+        });
+        
+        const closeShiftModal = new bootstrap.Modal(document.getElementById('closeShiftModal'));
+        const openShiftModal = new bootstrap.Modal(document.getElementById('openShiftModal'));
+        const closeShiftBtn = document.getElementById('closeShiftBtn');
+        const cashManagementBtn = document.getElementById('cashManagementBtn');
+        const collectCashBtn = document.getElementById('collectCashBtn');
+        const startShiftBtn = document.getElementById('startShiftBtn');
+        
+        // Check shift status on load
+        checkShiftStatus();
+        
+        closeShiftBtn.addEventListener('click', function() {
+            if (closeShiftBtn.textContent.includes('Close')) {
+                // Show close shift modal
+                document.getElementById('closeShiftAmount').textContent = document.getElementById('finalCash').textContent;
+                closeShiftModal.show();
+            } else {
+                // Show open shift modal
+                openShiftModal.show();
+            }
+        });
+        
+        collectCashBtn.addEventListener('click', function() {
+            const amount = document.getElementById('finalCash').textContent;
+            if (confirm('Do you want to close the shift?')) {
+                fetch('/api/close_shift', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        closing_amount: parseFloat(amount.replace('₱', '')),
+                        date: document.getElementById('datePicker').value
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        closeShiftModal.hide();
+                        updateShiftStatus(false);
+                        // Clear all values after closing shift
+                        loadSalesData(document.getElementById('datePicker').value);
+                        // Move to next day
+                        const nextDay = new Date(document.getElementById('datePicker').value);
+                        nextDay.setDate(nextDay.getDate() + 1);
+                        datePicker.setDate(nextDay);
+                    } else {
+                        alert(data.message || 'Error closing shift');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error closing shift. Please try again.');
+                });
+            }
+        });
+        
+        startShiftBtn.addEventListener('click', function() {
+            const startingCash = parseFloat(document.getElementById('startingCashInput').value);
+            if (isNaN(startingCash) || startingCash < 0) {
+                alert('Please enter a valid starting cash amount');
+                return;
+            }
+            
+            fetch('/api/open_shift', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    starting_amount: startingCash
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    openShiftModal.hide();
+                    document.getElementById('startingCashInput').value = '';
+                    // Reload data and update UI
+                    loadSalesData(document.getElementById('datePicker').value);
+                    checkShiftStatus();
+                } else {
+                    alert(data.message || 'Error opening shift');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error opening shift. Please try again.');
+            });
+        });
+        
+        function checkShiftStatus() {
+            fetch('/api/shift_status/current')
+                .then(response => response.json())
+                .then(data => {
+                    updateShiftStatus(data.is_open);
+                })
+                .catch(error => {
+                    console.error('Error checking shift status:', error);
+                    updateShiftStatus(false);
+                });
+        }
+
+        function updateShiftStatus(isOpen) {
+            const closeShiftBtn = document.getElementById('closeShiftBtn');
+            const cashManagementBtn = document.getElementById('cashManagementBtn');
+            
+            if (isOpen) {
+                closeShiftBtn.innerHTML = '<i class="fas fa-door-closed"></i> Close Shift';
+                closeShiftBtn.classList.remove('btn-success');
+                closeShiftBtn.classList.add('btn-danger');
+                cashManagementBtn.disabled = false;
+                cashManagementBtn.classList.remove('btn-secondary');
+                cashManagementBtn.classList.add('btn-primary');
+            } else {
+                closeShiftBtn.innerHTML = '<i class="fas fa-door-open"></i> Open Shift';
+                closeShiftBtn.classList.remove('btn-danger');
+                closeShiftBtn.classList.add('btn-success');
+                cashManagementBtn.disabled = true;
+                cashManagementBtn.classList.remove('btn-primary');
+                cashManagementBtn.classList.add('btn-secondary');
+            }
+        }
+
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', function() {
+            checkShiftStatus();
+            loadSalesData(document.getElementById('datePicker').value);
+        });
+
+        // Update when date changes
+        datePicker.config.onChange.push(function(selectedDates, dateStr) {
+            checkShiftStatus();
+            loadSalesData(dateStr);
+        });
+    });
+    
+    function formatDate(date) {
+        return date.toISOString().split('T')[0];
+    }
+    
+    function formatCurrency(amount) {
+        return '₱' + parseFloat(amount).toFixed(2);
+    }
+    
+    function formatTime(dateString) {
+        return new Date(dateString).toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+    
+    function loadSalesData(date) {
+        // Ensure we have a valid date, default to today if not provided
+        if (!date) {
+            date = new Date().toISOString().split('T')[0];
+        }
+        
+        fetch(`/api/sales_report/${date}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to load sales data');
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Format date
+                document.getElementById('selectedDate').textContent = new Date(date).toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+
+                // Check if shift is open
+                fetch(`/api/shift_status/current`)
+                    .then(response => response.json())
+                    .then(shiftData => {
+                        if (shiftData.is_open) {
+                            // Show active shift values
+                            const initialCash = (data.starting_cash || 0) + data.cash_sales;
+                            document.getElementById('initialCash').textContent = formatCurrency(initialCash);
+                            document.getElementById('gcashAmount').textContent = `-₱${formatCurrency(data.ewallet_sales)}`;
+                            document.getElementById('creditAmount').textContent = `-₱${formatCurrency(data.credit_sales)}`;
+                            document.getElementById('refundAmount').textContent = `-₱${formatCurrency(data.refunded_sales)}`;
+                            document.getElementById('payInAmount').textContent = `+₱${formatCurrency(data.pay_in_amount)}`;
+                            document.getElementById('payOutAmount').textContent = `-₱${formatCurrency(data.pay_out_amount)}`;
+                            
+                            // Total sales (cash + gcash + credit - refunds - pay_out)
+                            const totalSales = initialCash + data.ewallet_sales + data.credit_sales - data.refunded_sales - data.pay_out_amount;
+                            document.getElementById('totalSales').textContent = formatCurrency(totalSales);
+                            
+                            // Final cash (initial cash + pay_in - refunds - pay_out)
+                            const finalCash = Math.max(0, initialCash + data.pay_in_amount - data.refunded_sales - data.pay_out_amount);
+                            document.getElementById('finalCash').textContent = formatCurrency(finalCash);
+                        } else {
+                            // Clear all values when shift is closed
+                            document.getElementById('initialCash').textContent = '₱0.00';
+                            document.getElementById('gcashAmount').textContent = '-₱0.00';
+                            document.getElementById('creditAmount').textContent = '-₱0.00';
+                            document.getElementById('refundAmount').textContent = '-₱0.00';
+                            document.getElementById('payInAmount').textContent = '+₱0.00';
+                            document.getElementById('payOutAmount').textContent = '-₱0.00';
+                            document.getElementById('totalSales').textContent = '₱0.00';
+                            document.getElementById('finalCash').textContent = '₱0.00';
+                        }
+                    });
+                
+                // Update the transactions table
+                updateTransactionsTable(data.sales);
+            })
+            .catch(error => {
+                console.error('Error loading sales data:', error);
+                // Clear all values on error
+                document.getElementById('initialCash').textContent = '₱0.00';
+                document.getElementById('gcashAmount').textContent = '-₱0.00';
+                document.getElementById('creditAmount').textContent = '-₱0.00';
+                document.getElementById('refundAmount').textContent = '-₱0.00';
+                document.getElementById('payInAmount').textContent = '+₱0.00';
+                document.getElementById('payOutAmount').textContent = '-₱0.00';
+                document.getElementById('totalSales').textContent = '₱0.00';
+                document.getElementById('finalCash').textContent = '₱0.00';
+            });
+    }
+    
+    function updateTransactionsTable(sales) {
+        const tableBody = document.getElementById('salesTableBody');
+        tableBody.innerHTML = '';
+        
+        if (sales.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="6" class="no-sales">No sales data for this date</td></tr>';
+            return;
+        }
+        
+        sales.forEach(sale => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${formatTime(sale.date)}</td>
+                <td>#${sale.id}</td>
+                <td>${sale.items_count} items</td>
+                <td>${sale.payment_method}</td>
+                <td>${formatCurrency(sale.total)}</td>
+                <td>
+                    <a href="/receipt/${sale.id}" class="btn btn-sm btn-primary" target="_blank">
+                        <i class="fas fa-receipt"></i> View
+                    </a>
+                </td>
+            `;
+            if (sale.is_refunded) {
+                row.classList.add('table-warning');
+            }
+            tableBody.appendChild(row);
+        });
+    }
+    
+    function loadCashManagementHistory(date) {
+        fetch(`/api/cash_management_history/${date}`)
+            .then(response => response.json())
+            .then(data => {
+                const historyContainer = document.getElementById('transactionHistory');
+                historyContainer.innerHTML = '';
+                
+                if (!data.transactions || data.transactions.length === 0) {
+                    historyContainer.innerHTML = '<div class="text-center text-muted">No transactions for this date</div>';
+                    return;
+                }
+                
+                data.transactions.forEach(transaction => {
+                    const transactionEl = document.createElement('div');
+                    transactionEl.className = `transaction-item ${transaction.type.toLowerCase()}`;
+                    
+                    const time = new Date(transaction.date).toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    
+                    transactionEl.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-start">
+                            <span class="transaction-amount ${transaction.type.toLowerCase()}">
+                                ${transaction.type === 'PAY_IN' ? '+' : '-'}₱${transaction.amount.toFixed(2)}
+                            </span>
+                            <span class="transaction-time">${time}</span>
+                        </div>
+                        <div class="transaction-comment">${transaction.comment}</div>
+                    `;
+                    
+                    historyContainer.appendChild(transactionEl);
+                });
+                
+                // Update the transaction history title to show the selected date
+                const historyTitle = document.querySelector('#cashManagementModal .col-md-6 h6');
+                const dateStr = new Date(date).toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+                historyTitle.textContent = `Transactions for ${dateStr}`;
+            })
+            .catch(error => {
+                console.error('Error loading transaction history:', error);
+                const historyContainer = document.getElementById('transactionHistory');
+                historyContainer.innerHTML = '<div class="text-center text-danger">Error loading transactions</div>';
+            });
+    }
+
+    function updateButtonsForDate(selectedDate) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const dateToCheck = new Date(selectedDate);
+        dateToCheck.setHours(0, 0, 0, 0);
+        
+        const closeShiftBtn = document.getElementById('closeShiftBtn');
+        const cashManagementBtn = document.getElementById('cashManagementBtn');
+        
+        if (dateToCheck < today) {
+            // Past date - disable shift controls
+            closeShiftBtn.disabled = true;
+            closeShiftBtn.classList.add('btn-secondary');
+            closeShiftBtn.classList.remove('btn-danger', 'btn-success');
+            
+            // Cash management button stays enabled but will show read-only mode
+            cashManagementBtn.dataset.viewOnly = 'true';
+        } else {
+            // Current date - enable controls
+            closeShiftBtn.disabled = false;
+            cashManagementBtn.dataset.viewOnly = 'false';
+            
+            // Update shift button appearance based on status
+            fetch(`/api/shift_status/current`)
+                .then(response => response.json())
+                .then(data => {
+                    updateShiftStatus(data.is_open);
+                });
+        }
+    }
+
+    // Modify the cash management modal to handle view-only mode
+    document.getElementById('cashManagementBtn').addEventListener('click', function(e) {
+        const isViewOnly = this.dataset.viewOnly === 'true';
+        const formSection = document.querySelector('#cashManagementModal .col-md-5');
+        const historySection = document.querySelector('#cashManagementModal .col-md-6');
+        const divider = document.querySelector('#cashManagementModal .col-md-1');
+        
+        // Always show form section
+        formSection.style.display = 'block';
+        
+        // Reset form fields
+        document.getElementById('amount').value = '';
+        document.getElementById('comment').value = '';
+        
+        // Enable form inputs for current date, disable for past dates
+        const amountInput = document.getElementById('amount');
+        const commentInput = document.getElementById('comment');
+        const payInBtn = document.getElementById('payInBtn');
+        const payOutBtn = document.getElementById('payOutBtn');
+        
+        if (isViewOnly) {
+            // Past date - disable inputs
+            amountInput.disabled = true;
+            commentInput.disabled = true;
+            payInBtn.disabled = true;
+            payOutBtn.disabled = true;
+            
+            divider.style.display = 'none';
+            historySection.classList.remove('col-md-6');
+            historySection.classList.add('col-md-12');
+            document.querySelector('#cashManagementModal .modal-title').textContent = 'Transaction History';
+        } else {
+            // Current date - enable inputs
+            amountInput.disabled = false;
+            commentInput.disabled = false;
+            payInBtn.disabled = false;
+            payOutBtn.disabled = false;
+            
+            divider.style.display = 'flex';
+            historySection.classList.remove('col-md-12');
+            historySection.classList.add('col-md-6');
+            document.querySelector('#cashManagementModal .modal-title').textContent = 'Cash Management';
+        }
+        
+        // Load transaction history
+        loadCashManagementHistory(document.getElementById('datePicker').value);
+    });
+
+    // Update datePicker onChange to include button updates
+    datePicker.config.onChange.push(function(selectedDates, dateStr) {
+        updateButtonsForDate(dateStr);
+        checkShiftStatus();
+        loadSalesData(dateStr);
+    });
+
+    // Initial button update
+    document.addEventListener('DOMContentLoaded', function() {
+        updateButtonsForDate(datePicker.input.value);
+    });
+
+    // Initialize datepicker with today's date
+    document.addEventListener('DOMContentLoaded', function() {
+        const today = new Date().toISOString().split('T')[0];
+        datePicker.setDate(today);
+        loadSalesData(today);
+        checkShiftStatus();
+    });
+</script>
+{% endblock %} 
